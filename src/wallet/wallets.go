@@ -20,7 +20,6 @@ type Wallets map[string]*Wallet
 // dir fails to load, loading is aborted and error returned.  Only files with
 // extension WalletExt are considered.
 func LoadWallets(dir string) (Wallets, error) {
-	// TODO -- don't load duplicate wallets.
 	// TODO -- save a last_modified value in wallets to decide which to load
 	entries, err := ioutil.ReadDir(dir)
 	if err != nil {
@@ -45,10 +44,39 @@ func LoadWallets(dir string) (Wallets, error) {
 			}
 			logger.Infof("Loaded wallet from %s", fullpath)
 			w.setFilename(name)
+
+			if isLoaded, fileName := wallets.isWalletLoaded(w); isLoaded {
+				return nil, fmt.Errorf("duplicate Walletfiles: '%v' and '%v'", fileName, name)
+			}
 			wallets[name] = w
 		}
 	}
 	return wallets, nil
+}
+
+// Returns if wallet was already loaded & if so the filename of the wallet will be returned
+func (wlts Wallets) isWalletLoaded(wlt *Wallet) (bool, string) {
+	var firstAddrLoaded string
+
+	logger.Infof("Checking if wallet is already loaded: %v", wlt.Filename())
+
+	if len(wlt.Entries) > 0 {
+		firstAddrLoaded = wlt.Entries[0].Address.String()
+	} else {
+		logger.Error("empty wallet!")
+		return false, ""
+	}
+
+	for _, wltItem := range wlts {
+
+		if len(wltItem.Entries) > 0 {
+
+			if wltItem.Entries[0].Address.String() == firstAddrLoaded {
+				return true, wltItem.Filename()
+			}
+		}
+	}
+	return false, ""
 }
 
 func backupWltFile(src, dst string) error { // nolint: deadcode,unused,megacheck
